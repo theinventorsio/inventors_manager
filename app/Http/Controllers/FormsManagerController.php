@@ -2,68 +2,61 @@
 
 namespace App\Http\Controllers;
 
-use App\Traits\FormsService;
-use Google\Service\Drive\DriveFile;
-use Google\Service\Forms\BatchUpdateFormRequest;
-use Google\Service\Forms\Option;
+use App\Traits\AirtableTrait;
+use App\Traits\FormsServiceTrait;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Tapp\Airtable\Airtable;
+use Tapp\Airtable\Api\AirtableApiClient;
 
 class FormsManagerController extends Controller
 {
-    use FormsService;
-
-    /**
-     * Display a listing of the resource.
-     *
-     * @return Response
-     */
-    public function index()
-    {
-        return [1, 2];
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return Response
-     */
-    public function create()
-    {
-        //
-    }
+    use FormsServiceTrait;
+    use AirtableTrait;
 
     /**
      * Store a newly created resource in storage.
      *
      * @param Request $request
-     * @return array
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function createForm(Request $request): array
+    public function createForm(Request $request): \Illuminate\Http\JsonResponse
     {
-        $title  = $request->input('title');
-        $formId = env('GOOGLE_DEFAULT_FORM');
 
-        $service = $this->driveConn();
+        try {
+            $title  = $request->input('title');
+            $idRecord = $request->input('idRecord',);
+            $formId = env('GOOGLE_DEFAULT_FORM');
 
-        $newFile = new \Google_Service_Drive_DriveFile();
-        $newFile->setName($title);
+            $service = $this->driveConn();
 
-        $copyFile = $service->files->copy($formId, $newFile);
-        $fileId   = $copyFile->getId();
+            $newFile = new \Google_Service_Drive_DriveFile();
+            $newFile->setName($title);
 
-        $values    = $request->input('students') ?? [];
-        $fieldName = $request->input('fieldName') ?? '';
+            $copyFile = $service->files->copy($formId, $newFile);
+            $fileId   = $copyFile->getId();
 
-        $body = empty($values) || empty($fieldName) ? [] : ['values' => $values, 'fieldName' => $fieldName];
+            $values    = $request->input('students') ?? [];
+            $fieldName = $request->input('fieldName') ?? '';
 
-        $this->updateForm(
-            $fileId,
-            $body,
-            $title
-        );
+            $body = empty($values) || empty($fieldName) ? [] : ['values' => $values, 'fieldName' => $fieldName];
 
-        return ["formLink" => str_replace('{id}', $fileId, env('GOOGLE_DEFAULT_LINK_FORM'))];
+            $this->updateForm(
+                $fileId,
+                $body,
+                $title
+            );
+
+            $link = str_replace('{id}', $fileId, env('GOOGLE_DEFAULT_LINK_FORM'));
+
+            $this->addFormLinkAirTables($idRecord, $link);
+        } catch(\Exception $err) {
+            return response()->json([
+                'status' => false,
+                'message' => $err
+            ], 500);
+        }
+
+        return response()->json(["success" => true]);
     }
 
     /**

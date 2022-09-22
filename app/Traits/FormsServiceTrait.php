@@ -9,7 +9,7 @@ use Google\Service\Forms\BatchUpdateFormRequest;
 use Google\Service\Forms\Option;
 use GuzzleHttp\Client;
 
-trait FormsService
+trait FormsServiceTrait
 {
     public function __construct()
     {
