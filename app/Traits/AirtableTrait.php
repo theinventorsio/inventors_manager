@@ -10,13 +10,42 @@ trait AirtableTrait
      * @param string $idRecord
      * @param string $linkForm
      */
-    public function addFormLinkAirTables(string $idRecord, string $linkForm)
+    public function addFormLink(string $idRecord, string $linkForm)
     {
-        $client = new AirtableApiClient(env("AIRTABLE_BASE"), env("AIRTABLE_TABLE"), env("AIRTABLE_KEY"));
+        $client = new AirtableApiClient(
+            env("AIRTABLE_CLASSES_BASE"),
+            env("AIRTABLE_CLASSES_TABLE"),
+            env("AIRTABLE_KEY")
+        );
+
         $airTable = new Airtable($client);
 
         $data = ["Reports link" => $linkForm];
 
-        $airTable->patch($idRecord, $data);
+        return $airTable->patch($idRecord, $data);
+    }
+
+    public function addReport(array $reports)
+    {
+        $client = new AirtableApiClient(
+            env("AIRTABLE_REPORTS_BASE"),
+            env("AIRTABLE_REPORTS_TABLE"),
+            env("AIRTABLE_KEY"), null, true
+        );
+
+        return $client->massUpdate('post', $reports);
+    }
+
+    public function getAllClasses()
+    {
+        $client = new AirtableApiClient(
+            env("AIRTABLE_CLASSES_BASE"),
+            env("AIRTABLE_CLASSES_TABLE"),
+            env("AIRTABLE_KEY")
+        );
+
+        $airTable = new Airtable($client);
+
+        return $airTable->all();
     }
 }

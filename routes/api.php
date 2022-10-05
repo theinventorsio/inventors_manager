@@ -23,10 +23,10 @@ use Illuminate\Validation\ValidationException;
 
 //Route::get('/airtables/show', [AirtablesController::class, 'show']);
 
-
 Route::post('/auth/login', [AuthController::class, 'loginUser']);
 Route::post('/auth/register', [AuthController::class, 'createUser'])->middleware('local');
 
+Route::get('/form/responses', [FormsManagerController::class, 'getResponses'])->middleware('auth:sanctum');;
 Route::post('/form/updateStudents', [FormsManagerController::class, 'updateStudents'])->middleware('auth:sanctum');
 Route::post('/form/createForm', [FormsManagerController::class, 'createForm'])->middleware('auth:sanctum');
 

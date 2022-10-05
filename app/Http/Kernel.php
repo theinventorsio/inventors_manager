@@ -82,4 +82,11 @@ class Kernel extends HttpKernel
         'throttle' => ThrottleRequests::class,
         'verified' => EnsureEmailIsVerified::class,
     ];
+
+//    protected function schedule(Schedule $schedule)
+//    {
+//        $schedule->call(function () {
+//            ;
+//        })->everyFiveMinutes();
+//    }
 }

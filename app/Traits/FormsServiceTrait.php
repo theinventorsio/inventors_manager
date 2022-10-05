@@ -71,15 +71,17 @@ trait FormsServiceTrait
      * @param string $formId
      * @param array $body
      * @param string $title
+     * @throws Exception
      */
-    public function updateForm(string $formId, array $body = [], string $title = '')
+    public function updateForm(string $formId, array $body = [], string $title = ''): array
     {
-        $values     = $body['values'];
-        $fieldName  = $body['fieldName'];
-
         $service = $this->formConn();
 
-        $form       = $service->forms->get($formId);
+        try {
+            $form = $service->forms->get($formId);
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => 'form not found'];
+        }
 
         $requests = [];
 
@@ -97,6 +99,9 @@ trait FormsServiceTrait
         }
 
         if(!empty($body)) {
+            $values     = $body['values'];
+            $fieldName  = $body['fieldName'];
+
             $formItems  = $form->getItems();
 
             foreach($formItems as $key=>$item){
@@ -122,11 +127,17 @@ trait FormsServiceTrait
             }
 
             $form->setItems($formItems);
-
-            $batch = new BatchUpdateFormRequest();
-            $batch->setRequests($requests);
-
-            $service->forms->batchUpdate($formId, $batch);
         }
+
+        $batch = new BatchUpdateFormRequest();
+        $batch->setRequests($requests);
+
+        $batchResponse = $service->forms->batchUpdate($formId, $batch);
+
+        if(!$batchResponse->valid()) {
+            return ['success' => 'false', 'error' => 'updating form'];
+        }
+
+        return ['success' => true, 'msg' => ['update' => ["students" => $values ?? [], 'formId' => $formId]]];
     }
 }
