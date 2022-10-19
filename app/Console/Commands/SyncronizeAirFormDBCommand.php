@@ -40,40 +40,73 @@ class SyncronizeAirFormDBCommand extends Command
     /**
      * Execute the console command.
      *
-     * @return int
+     * @return mixed
      */
     public function handle()
     {
-        $classes = $this->getAllClasses();
+        $conn = $this->formConn();
 
-        $addClassesToCreateForm = [];
-        $addClassesToForms = [];
+        $forms = $this->getFormsToGetResponses();
 
-        foreach($classes as $value) {
-            $reportLink = $value['fields']['Reports link'];
+        $responsesToAdd = [];
+        $formConfig = app('config')->get('forms');
+        $formAnswers = $formConfig['dev']['form']['answers'];
 
-            if(!empty($reportLink)) {
-                $students = implode(', ', $value['fields']['Students Array']);
+        foreach($forms as $form) {
+            $formId = $form->id_form;
 
-                $reportLink = Arr::last(explode('/', rtrim($reportLink, '/viewform')));
+            $parameters = [$formId];
 
-                $addClassesToCreateForm[] = [
-                    'id_class' => $value['id'],
-                    'title' => $value['fields']['Name'],
-                    'students' => $students
+            if(!empty($form->create_date_response)) {
+                $parameters[] = [
+                    'filter' => ['timestamp > '.$form->create_date_response]
                 ];
+            }
 
-                $addClassesToForms[] = [
-                    'id_class' => $value['id'],
-                    'id_form' => $reportLink,
-                    'active' => true
-                ];
+            try {
+                $res = $conn->forms_responses->listFormsResponses(...$parameters);
+                $responses = $res->getResponses();
+            } catch (\Exception $e) {
+                return ['success' => false, 'msg' => $e, 'body' => $parameters];
+            }
+
+            if(!empty($responses)) {
+                $dbToAdd = [];
+
+                $responses = array_reverse($responses);
+
+                foreach($responses as $response) {
+                    if($this->formResponseExists($response->responseId)) {
+                        echo $response->responseId;
+                        continue;
+                    }
+
+                    $response = $response->toSimpleObject();
+                    $answers = [];
+                    $insert = [
+                        'id_form_airtable' => $form->id,
+                        'id_response' => $response->responseId,
+                        'create_date_response' => $response->lastSubmittedTime
+                    ];
+
+                    foreach($formAnswers as $key=>$value){
+                        $data = data_get($response, 'answers.'.$key.'.textAnswers.answers.*.value', ['']);
+                        $resp_value = sizeof($data) > 1 ? implode(', ', $data) : $data[0];
+
+                        $answers[$value['airtable']] = $resp_value;
+                        $insert[$value['db']] = $resp_value;
+                    }
+
+                    $dbToAdd[] = $insert;
+                    $responsesToAdd[] = ['fields' => $answers];
+                }
+
+                if(!empty($dbToAdd)) {
+                    $this->insertFormResponses($dbToAdd);
+                }
             }
         }
 
-        $this->insertCreateForm($addClassesToCreateForm);
-        $this->insertForms($addClassesToForms);
-
-        return [];
+        return $this->addReport($responsesToAdd);
     }
 }

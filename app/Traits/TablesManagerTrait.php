@@ -67,12 +67,13 @@ trait TablesManagerTrait
      * @param bool $active
      * @return void
      */
-    public function updateFormCreateDB(string $formId, string $studentsArray, string $status = 'TRUE')
+    public function updateFormCreateDB(string $formId, string $studentsArray, string $status = 'TRUE', string $error = null)
     {
         UpdateForm::create([
-            'id_form'  => $formId,
-            'students' => $studentsArray,
-            'status'   => $status
+            'id_form'            => $formId,
+            'students'           => $studentsArray,
+            'status'             => $status,
+            'status_observation' => $error
         ]);
     }
 
@@ -121,5 +122,14 @@ trait TablesManagerTrait
     public function insertCreateForm(array $data)
     {
         CreateForm::insert($data);
+    }
+
+    /**
+     * @param $idResponse
+     * @return bool
+     */
+    public function formResponseExists($idResponse): bool
+    {
+        return FormResponses::where('id_response', $idResponse)->exists();
     }
 }

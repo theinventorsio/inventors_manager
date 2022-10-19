@@ -31,9 +31,9 @@ class FormsManagerController extends Controller
         $fieldName     = 'Presenças de Inscritos';
         $studentsArray = explode(',', $students);
 
-//        if($this->formsExists('id_class', $idRecord)) {
-//            return response()->json(['success' => false, 'msg' => 'Class/Form já existem']);
-//        }
+        if($this->formsExists('id_class', $idRecord)) {
+            return response()->json(['success' => false, 'msg' => 'Class/Form já existem']);
+        }
 
         try {
             $service = $this->driveConn();
@@ -89,12 +89,9 @@ class FormsManagerController extends Controller
         $formId = $request->input('formId');
         $students = $request->input('students');
 
-        if(empty($students)) {
-            return ['success' => false, 'msg' => 'missing value in students'];
+        if(empty($students) || empty($formId)) {
+            return ['success' => false, 'msg' => 'missing value in students or formId'];
         }
-
-
-        $studentsArray = explode(',', $students);
 
         try {
             $body   = [
@@ -104,11 +101,11 @@ class FormsManagerController extends Controller
 
             $update = $this->updateForm($formId, $body);
 
-            $this->updateFormCreateDB($formId, $studentsArray);
+            $this->updateFormCreateDB($formId, $students);
 
             return $update;
         } catch(\Google\Exception | \Exception $e) {
-            $this->updateFormCreateDB($formId, $studentsArray, 'ERROR', $e);
+            $this->updateFormCreateDB($formId, $students, 'ERROR', $e);
 
             return ['success' => false, 'error' => 'error updating'];
         }
@@ -134,14 +131,18 @@ class FormsManagerController extends Controller
 
             $parameters = [$formId];
 
-            if(!empty($form->created_date_response)) {
+            if(!empty($form->create_date_response)) {
                 $parameters[] = [
-                    'filter' => ['timestamp > '.$form->created_date_response]
+                    'filter' => ['timestamp > '.$form->create_date_response]
                 ];
             }
 
-            $res = $conn->forms_responses->listFormsResponses(...$parameters);
-            $responses = $res->getResponses();
+            try {
+                $res = $conn->forms_responses->listFormsResponses(...$parameters);
+                $responses = $res->getResponses();
+            } catch (\Exception $e) {
+                return ['success' => false, 'msg' => $e, 'body' => $parameters];
+            }
 
             if(!empty($responses)) {
                 $dbToAdd = [];
@@ -149,6 +150,11 @@ class FormsManagerController extends Controller
                 $responses = array_reverse($responses);
 
                 foreach($responses as $response) {
+                    if($this->formResponseExists($response->responseId)) {
+                        echo $response->responseId;
+                        continue;
+                    }
+
                     $response = $response->toSimpleObject();
                     $answers = [];
                     $insert = [
@@ -158,7 +164,7 @@ class FormsManagerController extends Controller
                     ];
 
                     foreach($formAnswers as $key=>$value){
-                        $data = data_get($response, 'answers.'.$key.'.textAnswers.answers.*.value');
+                        $data = data_get($response, 'answers.'.$key.'.textAnswers.answers.*.value', ['']);
                         $resp_value = sizeof($data) > 1 ? implode(', ', $data) : $data[0];
 
                         $answers[$value['airtable']] = $resp_value;
@@ -169,8 +175,9 @@ class FormsManagerController extends Controller
                     $responsesToAdd[] = ['fields' => $answers];
                 }
 
-                $this->insertFormResponses($dbToAdd);
-                $this->updateFormsLastResponse($form->id, $responses[array_key_last($responses)]->responseId);
+                if(!empty($dbToAdd)) {
+                    $this->insertFormResponses($dbToAdd);
+                }
             }
         }
 
