@@ -19,6 +19,7 @@ class DatabaseController extends Controller
         $table = $request->input('table') ?? 'create_form_request';
         $startDate = $request->input('start_date') ?? null;
         $endDate = $request->input('end_date') ?? null;
+        $toCsv = $request->input('to_csv') ?? true;
 
         $tables = [
             'create_form_request' => CreateForm::class,
@@ -26,9 +27,9 @@ class DatabaseController extends Controller
             'form_response' => FormResponses::class,
             'update_form_request' => [
                 "query" => "SELECT 
-                    ufr.id, fa.id_form, fa.id_class, ufr.students, ufr.status, ufr.status_observation, ufr.created_at 
+                    ufr.id, fa.id_form, fa.id_class, ufr.students, ufr.status, ufr.created_at 
                     FROM update_form_request ufr
-                    INNER JOIN form_airtable fa ON ufr.id_form_airtable = fa.id ",
+                    LEFT JOIN form_airtable fa ON ufr.id_form_airtable = fa.id ",
                 "columns" => [
                     "id", "id_form", "id_class", "students", "status", "created_at"
                 ]
@@ -43,10 +44,20 @@ class DatabaseController extends Controller
 
         $rows = $this->getData($tableValue, $startDate, $endDate);
 
+        if(!$toCsv) {
+            return $rows;
+        }
+
         $this->toCsv($table, $rows, $tableValue['columns'] ?? null);
     }
 
-    private function getData($tableValue, $startDate, $endDate)
+    /**
+     * @param $tableValue
+     * @param string $startDate
+     * @param string|null $endDate
+     * @return array|mixed
+     */
+    private function getData($tableValue, string $startDate, ?string $endDate)
     {
         $rows = [];
 
@@ -80,7 +91,7 @@ class DatabaseController extends Controller
     private function toCSV(string $table, array $rows, ?array $columns): void
     {
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=product-' . date("Y-m-d-h-i-s") . '.csv');
+        header("Content-Disposition: attachment; filename={$table}-" . date("Y-m-d-h-i-s") . '.csv');
 
         $output = fopen('php://output', 'w');
         $columns = !empty($columns) ? $columns : DB::getSchemaBuilder()->getColumnListing($table);
