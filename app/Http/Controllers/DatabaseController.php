@@ -5,16 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\CreateForm;
 use App\Models\FormResponses;
 use App\Models\Forms;
-use App\Models\UpdateForm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class DatabaseController extends Controller
 {
-
     /**
      * @param Request $request
-     * @return void
+     * @return void|array
      */
     public function getDBtoCSV(Request $request)
     {
@@ -22,30 +20,71 @@ class DatabaseController extends Controller
         $startDate = $request->input('start_date') ?? null;
         $endDate = $request->input('end_date') ?? null;
 
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=product-' . date("Y-m-d-h-i-s") . '.csv');
-        $output = fopen('php://output', 'w');
-
-        $columns = DB::getSchemaBuilder()->getColumnListing($table);
-        fputcsv($output, $columns);
-
         $tables = [
             'create_form_request' => CreateForm::class,
             'form_airtable' => Forms::class,
             'form_response' => FormResponses::class,
-            'update_form_request' => UpdateForm::class
+            'update_form_request' => [
+                "query" => "SELECT 
+                    ufr.id, fa.id_form, fa.id_class, ufr.students, ufr.status, ufr.status_observation, ufr.created_at 
+                    FROM update_form_request ufr
+                    INNER JOIN form_airtable fa ON ufr.id_form_airtable = fa.id ",
+                "columns" => [
+                    "id", "id_form", "id_class", "students", "status", "created_at"
+                ]
+            ]
         ];
 
+        $tableValue = $tables[$table] ?? null;
+
+        if(empty($tableValue)) {
+            return ["success" => false, "error" => "table doesn't exists"];
+        }
+
+        $rows = $this->getData($tableValue, $startDate, $endDate);
+
+        $this->toCsv($table, $rows, $tableValue['columns'] ?? null);
+    }
+
+    private function getData($tableValue, $startDate, $endDate)
+    {
         $rows = [];
 
         if(!empty($startDate)) {
-            $rows = $tables[$table]::where('created_at', '>=', $startDate)
-                ->where('created_at', '<=', $endDate ?? now())
-                ->get();
+            if(!is_array($tableValue)) {
+                $rows = $tableValue::where('created_at', '>=', $startDate)
+                    ->where('created_at', '<=', $endDate ?? now())
+                    ->get();
+            } else {
+                $where = " WHERE ufr.created_at BETWEEN '$startDate' AND '" . ($endDate ?? now()) . "'";
+                $rows  = DB::select($tableValue['query'] . $where);
+            }
+
         } else {
-            $rows = $tables[$table]::get();
+            $rows = !is_array($tableValue) ? $tableValue::get() : DB::select($tableValue['query']);
         }
 
+        if(is_array($tableValue)) {
+            $rows = json_decode(json_encode($rows), true);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param string $table
+     * @param array $rows
+     * @param array|null $columns
+     * @return void
+     */
+    private function toCSV(string $table, array $rows, ?array $columns): void
+    {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=product-' . date("Y-m-d-h-i-s") . '.csv');
+
+        $output = fopen('php://output', 'w');
+        $columns = !empty($columns) ? $columns : DB::getSchemaBuilder()->getColumnListing($table);
+        fputcsv($output, $columns);
 
         if (count($rows) > 0) {
 

@@ -95,7 +95,7 @@ class FormsManagerController extends Controller
 
         try {
             $body   = [
-                "values"    => explode(',', $request->input('students')),
+                "values"    => explode(',', $students),
                 "fieldName" => 'Presenças de Inscritos'
             ];
 
@@ -109,78 +109,5 @@ class FormsManagerController extends Controller
 
             return ['success' => false, 'error' => 'error updating'];
         }
-    }
-
-    /**
-     * @return array|array[]
-     * @throws \Psr\Container\ContainerExceptionInterface
-     * @throws \Psr\Container\NotFoundExceptionInterface
-     */
-    public function getResponses(): array
-    {
-        $conn = $this->formConn();
-
-        $forms = $this->getFormsToGetResponses();
-
-        $responsesToAdd = [];
-        $formConfig = app('config')->get('forms');
-        $formAnswers = $formConfig['dev']['form']['answers'];
-
-        foreach($forms as $form) {
-            $formId = $form->id_form;
-
-            $parameters = [$formId];
-
-            if(!empty($form->create_date_response)) {
-                $parameters[] = [
-                    'filter' => ['timestamp > '.$form->create_date_response]
-                ];
-            }
-
-            try {
-                $res = $conn->forms_responses->listFormsResponses(...$parameters);
-                $responses = $res->getResponses();
-            } catch (\Exception $e) {
-                return ['success' => false, 'msg' => $e, 'body' => $parameters];
-            }
-
-            if(!empty($responses)) {
-                $dbToAdd = [];
-
-                $responses = array_reverse($responses);
-
-                foreach($responses as $response) {
-                    if($this->formResponseExists($response->responseId)) {
-                        echo $response->responseId;
-                        continue;
-                    }
-
-                    $response = $response->toSimpleObject();
-                    $answers = [];
-                    $insert = [
-                        'id_form_airtable' => $form->id,
-                        'id_response' => $response->responseId,
-                        'create_date_response' => $response->lastSubmittedTime
-                    ];
-
-                    foreach($formAnswers as $key=>$value){
-                        $data = data_get($response, 'answers.'.$key.'.textAnswers.answers.*.value', ['']);
-                        $resp_value = sizeof($data) > 1 ? implode(', ', $data) : $data[0];
-
-                        $answers[$value['airtable']] = $resp_value;
-                        $insert[$value['db']] = $resp_value;
-                    }
-
-                    $dbToAdd[] = $insert;
-                    $responsesToAdd[] = ['fields' => $answers];
-                }
-
-                if(!empty($dbToAdd)) {
-                    $this->insertFormResponses($dbToAdd);
-                }
-            }
-        }
-
-        return $this->addReport($responsesToAdd);
     }
 }

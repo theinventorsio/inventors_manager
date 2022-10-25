@@ -69,8 +69,10 @@ trait TablesManagerTrait
      */
     public function updateFormCreateDB(string $formId, string $studentsArray, string $status = 'TRUE', string $error = null)
     {
+        $idFormAirtable = Forms::where('id_form', $formId)->first()->id;
+
         UpdateForm::create([
-            'id_form'            => $formId,
+            'id_form_airtable'   => $idFormAirtable,
             'students'           => $studentsArray,
             'status'             => $status,
             'status_observation' => $error
@@ -85,7 +87,9 @@ trait TablesManagerTrait
         $forms = DB::select(
         "SELECT fa.id, fa.id_form, fa.id_class, fr2.id_response, fr2.create_date_response 
                 FROM form_airtable fa
-                LEFT JOIN (SELECT id, id_form_airtable, MAX(create_date_response) FROM form_response GROUP BY id_form_airtable DESC) fr ON fr.id_form_airtable = fa.id
+                LEFT JOIN (SELECT id, id_form_airtable, MAX(create_date_response) 
+                           FROM form_response GROUP BY id_form_airtable DESC) fr 
+                    ON fr.id_form_airtable = fa.id
                 LEFT JOIN form_response fr2 ON fr.id = fr2.id;"
         );
 

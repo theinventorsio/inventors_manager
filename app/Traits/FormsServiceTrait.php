@@ -134,7 +134,7 @@ trait FormsServiceTrait
 
         $batchResponse = $service->forms->batchUpdate($formId, $batch);
 
-        if(!$batchResponse->valid()) {
+        if(!$batchResponse->valid() || !$batchResponse->count()) {
             return ['success' => 'false', 'error' => 'updating form'];
         }
 
